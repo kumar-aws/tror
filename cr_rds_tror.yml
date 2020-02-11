@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates an empty SQL Server RDS database as an example for TROR.
+Parameters:
+  DBInstanceID:
+    Default: tror-dev
+    Description: My database instance
+    Type: String
+    MinLength: '1'
+    MaxLength: '63'
+  DBName:
+    Default: wc2m-irs-tror-rds-dev
+    Description: sql server database
+    Type: String
+    MinLength: '1'
+    MaxLength: '64'
+  DatabaseUsername:
+    NoEcho: 'true'
+    ConstraintDescription: must contain only alphanumeric characters.
+    Description: The database admin account user name.
+    MaxLength: '16'
+    MinLength: '1'
+    Type: String
+  DatabasePassword:
+    NoEcho: 'true'
+    ConstraintDescription: Must contain only alphanumeric characters with at least one capital letter and one number.
+    Description: The database admin account password.
+    MaxLength: '41'
+    MinLength: '8'
+    NoEcho: 'true'
+    Type: String
+  TRORVPC:
+    Description: "TROR VPC to launch instances into"
+    Type: "AWS::EC2::VPC::Id"
+
+  PrivateSubnets:
+    Description: "Subnets to launch instances into- choose 2 subnets in different availability zones"
+    Type: "List<AWS::EC2::Subnet::Id>"
+Resources:
+  DbSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties:
+      DBSubnetGroupDescription: !Sub "RDS DB subnet group"
+      SubnetIds:
+        Ref: "PrivateSubnets"
+  SQLServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref "TRORVPC"
+      GroupDescription: SQL Server Security Group
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '1433'
+        ToPort: '1433'
+        CidrIp: 0.0.0.0/0
+  SQLDatabase:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      VPCSecurityGroups:
+      - Fn::GetAtt:
+        - SQLServerSecurityGroup
+        - GroupId
+      LicenseModel: license-included
+      Engine: sqlserver-se
+      EngineVersion: 14.00.3223.3.v1
+      MultiAZ: false
+      DBInstanceIdentifier: !Ref DBInstanceID
+      DBInstanceClass: db.m5.large
+      AllocatedStorage: '500'
+      DBSubnetGroupName: !Ref "DbSubnetGroup"
+      MasterUsername:
+        Ref: DatabaseUsername
+      MasterUserPassword:
+        Ref: DatabasePassword
+      PubliclyAccessible: 'false'
+      Tags:
+        -
+          Key: "Name"
+          Value: "office-hours"
+        -
+          Key: "project"
+          Value: "TROR"
+      BackupRetentionPeriod: '7'
+      AutoMinorVersionUpgrade: 'True'
+Outputs:
+   SQLDatabaseEndpoint:
+     Description: Database endpoint
+     Value: !Sub "${SQLDatabase.Endpoint.Address}:${SQLDatabase.Endpoint.Port}"
